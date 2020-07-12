@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import arrow.core.Either
+import arrow.core.getOrElse
 import io.mega.nrobinson.jackal.R
 import io.mega.nrobinson.jackal.ui.viewmodel.ProgressViewModel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
@@ -28,7 +29,7 @@ class ProgressFragment @Inject constructor(
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val v = inflater.inflate(R.layout.fragment_progress, container)
+        val v = inflater.inflate(R.layout.fragment_progress, container, false)
         val recycler = v.findViewById(R.id.progress_recycler) as RecyclerView
         val adapter = ProgressAdapter()
         val layoutManager = LinearLayoutManager(context)
@@ -41,7 +42,8 @@ class ProgressFragment @Inject constructor(
         progressViewModel.progress()
         progressViewModel.progresses()
             .subscribeOn(AndroidSchedulers.mainThread())
-            .subscribe { progress ->
+            .subscribe { progressOption ->
+                val progress = progressOption.getOrElse { null } ?: return@subscribe
                 when (progress) {
                     is Either.Left -> Log.e("ProgressFragment", progress.a.message, progress.a)
                     is Either.Right -> adapter.submitList(listOf(

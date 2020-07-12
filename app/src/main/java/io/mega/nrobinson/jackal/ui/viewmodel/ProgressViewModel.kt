@@ -2,6 +2,7 @@ package io.mega.nrobinson.jackal.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import arrow.core.Either
+import arrow.core.Option
 import io.mega.nrobinson.jackal.api.model.JackalProgress
 import io.mega.nrobinson.jackal.extensions.addTo
 import io.mega.nrobinson.jackal.repository.JackalRepository
@@ -11,36 +12,38 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.subjects.BehaviorSubject
 import javax.inject.Inject
 
+typealias ViewModelResult<T> = Option<Either<Throwable, T>>
+
 class ProgressViewModel @Inject constructor(
     private val repository: JackalRepository
 ): ViewModel() {
-    private val startBehavior = BehaviorSubject.create<Either<Throwable, Unit>?>()
-    private val progressBehavior = BehaviorSubject.create<Either<Throwable, JackalProgress>?>()
+    private val startBehavior = BehaviorSubject.create<ViewModelResult<Unit>>()
+    private val progressBehavior = BehaviorSubject.create<ViewModelResult<JackalProgress>>()
     private val disposable = CompositeDisposable()
 
-    fun started(): Observable<Either<Throwable, Unit>?> = startBehavior
-    fun progresses(): Observable<Either<Throwable, JackalProgress>?> = progressBehavior
+    fun started(): Observable<ViewModelResult<Unit>> = startBehavior
+    fun progresses(): Observable<ViewModelResult<JackalProgress>> = progressBehavior
 
     fun start(torrent: ByteArray) {
-        startBehavior.onNext(null)
+        startBehavior.onNext(Option.empty())
         repository.start(torrent)
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({
-                startBehavior.onNext(Either.right(Unit))
+                startBehavior.onNext(Option.just(Either.right(Unit)))
             }, {
-                startBehavior.onNext(Either.left(it))
+                startBehavior.onNext(Option.just(Either.left(it)))
             })
             .addTo(disposable)
     }
 
     fun progress() {
-        progressBehavior.onNext(null)
+        progressBehavior.onNext(Option.empty())
         repository.progress()
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({
-                progressBehavior.onNext(Either.right(it))
+                progressBehavior.onNext(Option.just(Either.right(it)))
             }, {
-                progressBehavior.onNext(Either.left(it))
+                progressBehavior.onNext(Option.just(Either.left(it)))
             })
             .addTo(disposable)
     }

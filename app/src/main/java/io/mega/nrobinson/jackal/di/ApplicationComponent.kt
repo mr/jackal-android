@@ -12,4 +12,5 @@ import io.mega.nrobinson.jackal.ui.MainActivity
 )
 interface ApplicationComponent {
     fun inject(activity: MainActivity)
+    fun inject(navHostFragment: DaggerNavHostFragment)
 }
