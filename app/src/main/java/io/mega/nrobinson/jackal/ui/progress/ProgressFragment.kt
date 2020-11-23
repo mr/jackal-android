@@ -1,5 +1,8 @@
 package io.mega.nrobinson.jackal.ui.progress
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -11,11 +14,20 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import arrow.core.Either
-import arrow.core.getOrElse
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.jakewharton.rxbinding4.swiperefreshlayout.refreshes
+import com.jakewharton.rxbinding4.view.clicks
 import io.mega.nrobinson.jackal.R
+import io.mega.nrobinson.jackal.api.model.JackalProgress
+import io.mega.nrobinson.jackal.extensions.addTo
+import io.mega.nrobinson.jackal.rx.AutoDisposable
 import io.mega.nrobinson.jackal.ui.viewmodel.ProgressViewModel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.subjects.BehaviorSubject
+import okio.buffer
+import okio.source
 import javax.inject.Inject
 
 class ProgressFragment @Inject constructor(
@@ -23,6 +35,9 @@ class ProgressFragment @Inject constructor(
 ): Fragment() {
 
     private val progressViewModel: ProgressViewModel by viewModels { viewModelFactory }
+    private val disposable = AutoDisposable(lifecycle)
+
+    private val fileResult = BehaviorSubject.create<Uri>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -39,20 +54,66 @@ class ProgressFragment @Inject constructor(
             this.layoutManager = layoutManager
             addItemDecoration(DividerItemDecoration(context, layoutManager.orientation))
         }
-        progressViewModel.progress()
-        progressViewModel.progresses()
+        val swipe = v.findViewById(R.id.recycler_swipe) as SwipeRefreshLayout
+        Observable.merge(
+            progressViewModel.progress(),
+            swipe.refreshes().switchMap { progressViewModel.progress() })
             .subscribeOn(AndroidSchedulers.mainThread())
-            .subscribe { progressOption ->
-                val progress = progressOption.getOrElse { null } ?: return@subscribe
-                when (progress) {
-                    is Either.Left -> Log.e("ProgressFragment", progress.a.message, progress.a)
-                    is Either.Right -> adapter.submitList(listOf(
-                        progress.b.ftps,
-                        progress.b.calculating,
-                        progress.b.pending,
-                        progress.b.torrents).flatten())
-                }
+            .onErrorReturn {
+                Log.e("ProgressFragment", it.message, it)
+                JackalProgress(listOf(), listOf(), listOf(), listOf())
             }
+            .subscribe { progress ->
+                swipe.isRefreshing = false
+                adapter.submitList(listOf(
+                    progress.ftps,
+                    progress.calculating,
+                    progress.pending,
+                    progress.torrents).flatten())
+            }
+            .addTo(disposable)
+        val fab = v.findViewById(R.id.fab) as FloatingActionButton
+        fab.clicks()
+            .switchMap{ getFileContent() }
+            .switchMap(::startFile)
+            .subscribeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                Log.i(TAG, "Started torrent")
+            }
+            .addTo(disposable)
         return v
+    }
+
+    private fun startFile(uri: Uri): Observable<Unit> =
+        context?.contentResolver
+            ?.openInputStream(uri)
+            ?.source()
+            ?.buffer()
+            ?.readByteString()
+            ?.let(progressViewModel::start)
+            ?: Observable.empty()
+
+    private fun getFileContent(): Observable<Uri> {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+            putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+        }
+        startActivityForResult(intent, FILE_REQUEST_CODE)
+        return fileResult
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != FILE_REQUEST_CODE || resultCode != Activity.RESULT_OK) {
+            return
+        }
+
+        val uri = data?.data ?: return
+        fileResult.onNext(uri)
+    }
+
+    companion object {
+        private const val FILE_REQUEST_CODE = 0
+        private val TAG = ProgressFragment::class.simpleName
     }
 }
