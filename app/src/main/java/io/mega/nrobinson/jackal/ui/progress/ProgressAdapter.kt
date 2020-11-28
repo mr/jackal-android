@@ -20,7 +20,9 @@ data class ProgressViewHolder(val v: View): RecyclerView.ViewHolder(v) {
             is TorrentProgress -> {
                 progressType.setImageResource(R.drawable.ic_cloud_download_black_48dp)
                 progressName.text = progress.name
-                progressPercent.text = "${progress.current/progress.total}%"
+                progressPercent.text = itemView.context.getString(
+                    R.string.percentage,
+                    (progress.current.toDouble() / progress.total) * 100)
             }
             is Pending -> {
                 progressType.setImageResource(R.drawable.ic_cloud_queue_black_48dp)
@@ -35,7 +37,9 @@ data class ProgressViewHolder(val v: View): RecyclerView.ViewHolder(v) {
             is FTPProgress -> {
                 progressType.setImageResource(R.drawable.ic_cloud_upload_black_48dp)
                 progressName.text = progress.name
-                progressPercent.text = "${progress.current/progress.total}%"
+                progressPercent.text = itemView.context.getString(
+                    R.string.percentage,
+                    (progress.current.toDouble() / progress.total) * 100)
             }
             is Done -> {
                 progressType.setImageResource(R.drawable.ic_cloud_done_black_48dp)

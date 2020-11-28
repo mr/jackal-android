@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Jackal</string>
+    <!--                     - %1        - one argument
+                             -   $3.2f   - floating point with 3.2 digits
+                             -        %% - percent sign -->
+    <string name="percentage">%1$3.2f%%</string>
+    <string name="replace">Replace Me!</string>
 </resources>

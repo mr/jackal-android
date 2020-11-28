@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -28,6 +27,8 @@ import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.subjects.BehaviorSubject
 import okio.buffer
 import okio.source
+import timber.log.Timber
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class ProgressFragment @Inject constructor(
@@ -54,13 +55,31 @@ class ProgressFragment @Inject constructor(
             this.layoutManager = layoutManager
             addItemDecoration(DividerItemDecoration(context, layoutManager.orientation))
         }
+
+        val fab = v.findViewById(R.id.fab) as FloatingActionButton
+        val startedFile = fab.clicks()
+            .switchMap{ getFileContent() }
+            .switchMap(::startFile)
+            .onErrorReturn(Timber::e)
+        startedFile
+            .subscribeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                Timber.i("Started torrent")
+            }
+            .addTo(disposable)
+
         val swipe = v.findViewById(R.id.recycler_swipe) as SwipeRefreshLayout
-        Observable.merge(
-            progressViewModel.progress(),
-            swipe.refreshes().switchMap { progressViewModel.progress() })
+        Observable
+            .merge(
+                progressViewModel.progress(),
+                startedFile.switchMap { progressViewModel.progress() },
+                Observable.interval(5, TimeUnit.SECONDS)
+                    .switchMap { progressViewModel.progress() },
+                swipe.refreshes().switchMap { progressViewModel.progress() })
+            .distinctUntilChanged()
             .subscribeOn(AndroidSchedulers.mainThread())
             .onErrorReturn {
-                Log.e("ProgressFragment", it.message, it)
+                Timber.e(it)
                 JackalProgress(listOf(), listOf(), listOf(), listOf())
             }
             .subscribe { progress ->
@@ -72,15 +91,6 @@ class ProgressFragment @Inject constructor(
                     progress.torrents).flatten())
             }
             .addTo(disposable)
-        val fab = v.findViewById(R.id.fab) as FloatingActionButton
-        fab.clicks()
-            .switchMap{ getFileContent() }
-            .switchMap(::startFile)
-            .subscribeOn(AndroidSchedulers.mainThread())
-            .subscribe {
-                Log.i(TAG, "Started torrent")
-            }
-            .addTo(disposable)
         return v
     }
 
@@ -89,7 +99,7 @@ class ProgressFragment @Inject constructor(
             ?.openInputStream(uri)
             ?.source()
             ?.buffer()
-            ?.readByteString()
+            ?.readByteArray()
             ?.let(progressViewModel::start)
             ?: Observable.empty()
 
@@ -114,6 +124,5 @@ class ProgressFragment @Inject constructor(
 
     companion object {
         private const val FILE_REQUEST_CODE = 0
-        private val TAG = ProgressFragment::class.simpleName
     }
 }

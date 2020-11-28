@@ -8,7 +8,6 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.subjects.BehaviorSubject
-import okio.ByteString
 import javax.inject.Inject
 
 class ProgressViewModel @Inject constructor(
@@ -18,7 +17,7 @@ class ProgressViewModel @Inject constructor(
     private val progressBehavior = BehaviorSubject.create<JackalProgress>()
     private val disposable = CompositeDisposable()
 
-    fun start(torrent: ByteString): Observable<Unit> {
+    fun start(torrent: ByteArray): Observable<Unit> {
         repository.start(torrent)
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe({ startBehavior.onNext(Unit) }, startBehavior::onError)
